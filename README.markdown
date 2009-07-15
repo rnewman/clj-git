@@ -59,3 +59,11 @@ object store.
     ;; TADA!
     user=> (with-repo "/tmp/raw" (ref->commit "refs/heads/master"))
     "f8455ab747e18e8bba7b14acbd92dcbf8c15b5fa"
+
+    ;; Fetch file contents for the tree identified by the head.
+    user=> (with-repo "/tmp/raw"
+      (tree-contents
+        ((comp commit->tree ref->commit) "refs/heads/master")
+        blob?))
+    {"some-file" "Hello, world!"}
+

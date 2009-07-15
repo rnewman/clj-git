@@ -56,17 +56,25 @@
                      blobs)))
         "git" "mktree")))
 
+(defmacro with-line-seq [[s #^String lines] & body]
+  `(with-open [ss# (java.io.StringReader. ~lines)
+               bb# (java.io.BufferedReader. ss#)]
+     (let [~s (line-seq bb#)]
+       ~@body)))
+
+(defn- split-space [#^String line]
+  (let [space (int (.indexOf line (int \space)))]
+    (when space
+      [(.substring line 0 space)
+       (.substring line (+ 1 space))])))
+
+(definline flip [[x y]] [y x])
+
 (defn reverse-line-map
   "Take a string consisting of space-separated values, returning a map from the second half to the first."
   [#^String lines]
-  (letfn [(line->map-entry [#^String line]
-            (let [space (int (.indexOf line (int \space)))]
-              (when space
-                [(.substring line (+ 1 space))
-                 (.substring line 0 space)])))]
-    (with-open [s (java.io.StringReader. lines)
-                b (java.io.BufferedReader. s)]
-      (into {} (seq (map line->map-entry (line-seq b)))))))
+  (with-line-seq [s lines]
+    (into {} (seq (map (comp flip split-space) s)))))
 
 (defn refs->commits []
   (reverse-line-map
@@ -78,7 +86,46 @@
   ((reverse-line-map
      (sh "git" "show-ref" ref))
      ref))
-    
+
+(defn tree-entry->map [e]
+  (let [[all perms type sha1 filename]
+        (re-matches #"^([0-9]{6}) ([a-z]+) ([0-9a-f]+{40})\t(.*)$"
+                    e)]
+    {:permissions perms
+     :type type
+     :object sha1
+     :name filename}))
+
+(defn commit->tree
+  [commit]
+  (with-line-seq [s (cat-object commit "commit")]
+    (let [[what sha1] (split-space (first s))]
+      (if (= what "tree")
+        sha1
+        (throw (new Exception
+                    (str "Value is a " what ", not a tree.")))))))
+   
+(defn ls-tree
+  ;; Might want to add recursion options here.
+  ([tree]
+   (with-line-seq [s (sh "git" "ls-tree" tree)]
+     (doall (map tree-entry->map s)))))
+
+(defn blob? [x]
+  (= "blob" (:type x)))
+
+(defn tree-contents
+  "Not lazy to avoid any problems with bindings 'expiring'.
+  Returns a map of file path to contents.
+  Use a filter of blob? if you want to only fetch blobs."
+  ([tree filt]
+   (into {}
+     (map (fn [x]
+            [(:name x) (cat-object (:object x))])
+          (filter filt (ls-tree tree)))))
+  ([tree]
+   (tree-contents tree (constantly true))))
+
 (defn commit-tree
   [tree parent author committer message]
   (chomp
