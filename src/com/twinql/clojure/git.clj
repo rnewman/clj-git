@@ -22,9 +22,12 @@
   (chomp
     (sh "git" "cat-file" "-t" hash)))
   
-(defn cat-object [hash]
+(defn cat-object
   "Returns the contents as a string."
-  (sh "git" "cat-file" "blob" hash))
+  ([hash]
+   (sh "git" "cat-file" "blob" hash))
+  ([hash as]
+   (sh "git" "cat-file" (str as) hash)))
     
 (defn hash-object-from-string
   "Returns the SHA-1."
