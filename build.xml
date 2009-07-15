@@ -1,0 +1,51 @@
+<project name="clj-git" default="jar">
+
+  <property name="clojure.jar" location="/opt/clojure/clojure.jar"/>
+  <property name="clojure.contrib.jar" location="/opt/clojure-contrib/clojure-contrib.jar"/>
+  <available property="hasclojure" file="${clojure.jar}"/>
+  
+  <property name="src" location="src"/>
+  <property name="base.build" location="classes"/>
+  <property name="base.jarfile" location="clj-git.jar"/>
+  
+  <path id="baselibs.path">
+    <!-- Clojure. -->
+    <path location="${clojure.jar}"/>
+    <path location="${clojure.contrib.jar}"/>
+  </path>
+  
+  <target name="init">
+    <tstamp/>
+    <mkdir dir="${base.build}"/>
+  </target>
+
+  <target name="clean" description="Remove generated files and directories.">
+    <delete dir="${base.build}"/>
+    <delete file="${base.jarfile}"/>
+  </target>
+
+  <target name="compile_clojure" depends="init"
+          description="Compile Clojure sources."
+          if="hasclojure">
+    <java classname="clojure.lang.Compile">
+      <classpath>
+        <path location="${base.build}"/>
+        <path location="${src}"/>
+
+        <path refid="baselibs.path"/>
+      </classpath>
+     
+      <sysproperty key="clojure.compile.path" value="${base.build}"/>
+      <arg value="com.twinql.clojure.git"/>
+    </java>
+  </target>
+
+  <target name="jar" depends="compile_clojure">
+    <jar jarfile="${base.jarfile}">
+      <fileset dir="${base.build}" includes="**/*.class"/>
+      <manifest>
+        <attribute name="Class-Path" value="."/>
+      </manifest>
+    </jar>
+  </target>
+</project>
