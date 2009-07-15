@@ -4,7 +4,7 @@
   (:use clojure.contrib.shell-out))
 
 (defmacro with-repo [repo & body]
-  `(with-sh-dir repo
+  `(with-sh-dir ~repo
      ~@body))
 
 (defn status []
@@ -29,23 +29,28 @@
 (defn hash-object-from-string
   "Returns the SHA-1."
   [object path write? filters?]
-  (chomp
-    (apply sh
-           :in object
-           (concat
-             ["git" "hash-object" "--stdin"]
-             (when path ["--path" path])
-             (when write? ["-w"])
-             (when (not filters?) ["--no-filters"])))))
+  (if (and (not filters?)
+           path)
+    (throw (Exception. "Cannot combine path with no-filters."))
+    (chomp
+      (apply sh
+             :in object
+             (concat
+               ["git" "hash-object" "--stdin"]
+               (when path ["--path" path])
+               (when write? ["-w"])
+               (when (not filters?) ["--no-filters"]))))))
 
 (defn make-tree
-  "Each blob is a pair of SHA1, name."
+  "Each blob is a sequence of SHA1, kind, name."
   [blobs]
   (chomp
-    (sh :in (str
-              (map (fn [[sha1 name]]
-                     (str "100644 " sha1 \tab name \newline))
-                   blobs))
+    (sh :in (apply str
+              (seq
+                (map (fn [[sha1 kind name]]
+                       (str "100644 " (str kind) " "
+                            sha1 \tab name \newline))
+                     blobs)))
         "git" "mktree")))
 
 (defn reverse-line-map
