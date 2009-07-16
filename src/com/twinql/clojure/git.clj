@@ -7,6 +7,27 @@
   `(with-sh-dir ~repo
      ~@body))
 
+(defn git-kind [x]
+  (letfn [(err [] (throw (new Exception (str "Invalid object type '" x "'."))))]
+    (cond
+      (instance? x String)
+      (cond
+        (= x "blob")   :blob
+        (= x "tag")    :tag
+        (= x "commit") :commit
+        (= x "tree")   :tree
+        true           (err))
+      
+      (keyword? x)
+      (if ({:blob :tag :commit :tree} x)
+        x
+        (err)))))
+    
+(defn make-repo [dir]
+  (sh "mkdir" "-p" dir)
+  (with-sh-dir dir
+    (sh "git" "init")))
+
 (defn status []
   (sh "git" "status"))
 
@@ -27,7 +48,7 @@
   ([hash]
    (sh "git" "cat-file" "blob" hash))
   ([hash as]
-   (sh "git" "cat-file" (str as) hash)))
+   (sh "git" "cat-file" (git-kind as) hash)))
     
 (defn hash-object-from-string
   "Returns the SHA-1."
@@ -45,15 +66,24 @@
                (when (not filters?) ["--no-filters"]))))))
 
 (defn make-tree
-  "Each blob is a sequence of SHA1, kind, name."
-  [blobs]
+  "Each entry is a sequence of SHA1, kind, name."
+  [entries]
   (chomp
     (sh :in (apply str
               (seq
                 (map (fn [[sha1 kind name]]
-                       (str "100644 " (str kind) " "
-                            sha1 \tab name \newline))
-                     blobs)))
+                       (let [k (git-kind kind)]
+                         (cond
+                           ;; TODO: how do I handle tags and commits?
+                           (= k :tag)
+                           (str "040000 tag " sha1 \tab name \newline)
+                           (= k :commit)
+                           (str "040000 commit " sha1 \tab name \newline)
+                           (= k :tree)
+                           (str "040000 tree " sha1 \tab name \newline)
+                           (= k :blob)
+                           (str "100644 blob " sha1 \tab name \newline))))
+                     entries)))
         "git" "mktree")))
 
 (defmacro with-line-seq [[s #^String lines] & body]
@@ -129,14 +159,12 @@
 (defn commit-tree
   [tree parent author committer message]
   (chomp
-    (apply sh
-           (concat
-             [:in message
-              :env {"GIT_AUTHOR_NAME" author
-                    "GIT_COMMITTER_NAME" committer}
-              "git" "commit-tree"]
-             (when parent ["-p" parent])
-             [tree]))))
+    (apply sh (concat
+                [:in message
+                 :env {"GIT_AUTHOR_NAME" author
+                       "GIT_COMMITTER_NAME" committer}
+                 "git" "commit-tree" tree]
+                (when parent ["-p" parent])))))
 
 (defn update-ref
   [ref commit]
