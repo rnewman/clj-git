@@ -8,19 +8,18 @@
      ~@body))
 
 (defn git-kind [x]
-  (letfn [(err [] (throw (new Exception (str "Invalid object type '" x "'."))))]
+  (letfn [(err []
+            (throw (new Exception
+                        (str "Invalid object type '" x "'."))))]
     (cond
-      (instance? x String)
-      (cond
-        (= x "blob")   :blob
-        (= x "tag")    :tag
-        (= x "commit") :commit
-        (= x "tree")   :tree
-        true           (err))
+      (instance? String x)
+      (if (#{"blob" "tag" "commit" "tree"} x)
+        x
+        (err))
       
       (keyword? x)
-      (if ({:blob :tag :commit :tree} x)
-        x
+      (if (#{:blob :tag :commit :tree} x)
+        (name x)
         (err)))))
     
 (defn make-repo [dir]
@@ -32,7 +31,7 @@
   (sh "git" "status"))
 
 (defn object-exists? [hash]
-  (= 0 (:exit (sh :return-map true "git" "cat-file" "-e" hash))))
+  (zero? (:exit (sh :return-map true "git" "cat-file" "-e" hash))))
 
 (defn object-size [hash]
   (Integer/parseInt
@@ -75,13 +74,13 @@
                        (let [k (git-kind kind)]
                          (cond
                            ;; TODO: how do I handle tags and commits?
-                           (= k :tag)
+                           (= k "tag")
                            (str "040000 tag " sha1 \tab name \newline)
-                           (= k :commit)
+                           (= k "commit")
                            (str "040000 commit " sha1 \tab name \newline)
-                           (= k :tree)
+                           (= k "tree")
                            (str "040000 tree " sha1 \tab name \newline)
-                           (= k :blob)
+                           (= k "blob")
                            (str "100644 blob " sha1 \tab name \newline))))
                      entries)))
         "git" "mktree")))
@@ -128,12 +127,13 @@
 
 (defn commit->tree
   [commit]
-  (with-line-seq [s (cat-object commit "commit")]
-    (let [[what sha1] (split-space (first s))]
-      (if (= what "tree")
-        sha1
-        (throw (new Exception
-                    (str "Value is a " what ", not a tree.")))))))
+  (when commit
+    (with-line-seq [s (cat-object commit "commit")]
+      (let [[what sha1] (split-space (first s))]
+        (if (= what "tree")
+          sha1
+          (throw (new Exception
+                      (str "Value is a " what ", not a tree."))))))))
    
 (defn ls-tree
   ;; Might want to add recursion options here.
