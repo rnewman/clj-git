@@ -4,7 +4,7 @@
   (:use clojure.contrib.shell-out))
 
 (defmacro with-repo [repo & body]
-  `(with-sh-dir ~repo
+  `(with-sh-dir (or ~repo *sh-dir*)     ; So repo can be nil.
      ~@body))
 
 (defn git-kind [x]
@@ -116,6 +116,14 @@
      (sh "git" "show-ref" ref))
      ref))
 
+(defn ensure-ref->commit
+  "Return the commt for the given ref, or throw an Exception."
+  [ref]
+  (or (ref->commit ref)
+      (throw (new Exception
+                        (str "No commit for ref " ref "
+                             in repo " *sh-dir* ".")))))
+
 (defn tree-entry->map [e]
   (let [[all perms type sha1 filename]
         (re-matches #"^([0-9]{6}) ([a-z]+) ([0-9a-f]+{40})\t(.*)$"
@@ -138,8 +146,10 @@
 (defn ls-tree
   ;; Might want to add recursion options here.
   ([tree]
-   (with-line-seq [s (sh "git" "ls-tree" tree)]
-     (doall (map tree-entry->map s)))))
+   (if (nil? tree)
+     (throw (new Exception "nil passed to ls-tree."))
+     (with-line-seq [s (sh "git" "ls-tree" tree)]
+       (doall (map tree-entry->map s))))))
 
 (defn blob? [x]
   (= "blob" (:type x)))
