@@ -26,7 +26,7 @@
   (sh "mkdir" "-p" dir)
   (with-sh-dir dir
     (sh "git" "init")))
-
+ 
 (defn status []
   (sh "git" "status"))
 
@@ -65,23 +65,24 @@
                (when (not filters?) ["--no-filters"]))))))
 
 (defn make-tree
-  "Each entry is a sequence of SHA1, kind, name."
+  "Each entry is a sequence of perms, kind, SHA1, name.
+  If perms is nil, the default will be used for the kind."
   [entries]
   (chomp
     (sh :in (apply str
               (seq
-                (map (fn [[sha1 kind name]]
+                (map (fn [[perms kind sha1 name]]
                        (let [k (git-kind kind)]
                          (cond
                            ;; TODO: how do I handle tags and commits?
                            (= k "tag")
-                           (str "040000 tag " sha1 \tab name \newline)
+                           (str (or perms "040000") " tag " sha1 \tab name \newline)
                            (= k "commit")
-                           (str "040000 commit " sha1 \tab name \newline)
+                           (str (or perms "040000") " commit " sha1 \tab name \newline)
                            (= k "tree")
-                           (str "040000 tree " sha1 \tab name \newline)
+                           (str (or perms "040000") " tree " sha1 \tab name \newline)
                            (= k "blob")
-                           (str "100644 blob " sha1 \tab name \newline))))
+                           (str (or perms "100644") " blob " sha1 \tab name \newline))))
                      entries)))
         "git" "mktree")))
 
@@ -132,7 +133,13 @@
      :type type
      :object sha1
      :name filename}))
-
+  
+(defn tree-entry-seq
+  "Returns a 4-element sequence for an ls-tree row:
+       perms type object	filename"
+  [e]
+  (rest (re-matches #"^([0-9]{6}) ([a-z]+) ([0-9a-f]+{40})\t(.*)$" e)))
+  
 (defn commit->tree
   [commit]
   (when commit
@@ -149,10 +156,10 @@
    (if (nil? tree)
      (throw (new Exception "nil passed to ls-tree."))
      (with-line-seq [s (sh "git" "ls-tree" tree)]
-       (doall (map tree-entry->map s))))))
+       (doall (map tree-entry-seq s))))))
 
 (defn blob? [x]
-  (= "blob" (:type x)))
+  (= "blob" (second x)))
 
 (defn tree-contents
   "Not lazy to avoid any problems with bindings 'expiring'.
@@ -161,7 +168,7 @@
   ([tree filt]
    (into {}
      (map (fn [x]
-            [(:name x) (cat-object (:object x))])
+            [(nth x 3) (cat-object (nth x 2))])
           (filter filt (ls-tree tree)))))
   ([tree]
    (tree-contents tree (constantly true))))

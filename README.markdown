@@ -44,7 +44,7 @@ object store.
 
     ;; Make a tree and commit it.
     user=> (with-repo "/tmp/raw"
-      (make-tree [["5dd01c177f5d7d1be5346a5bc18a569a7410c2ef" "blob" "some-file"]]))
+      (make-tree [[nil "blob" "5dd01c177f5d7d1be5346a5bc18a569a7410c2ef" "some-file"]]))
     "1a4d231af53de9164b03296a4dcc18e2fcd715c6"
 
     user=> (with-repo "/tmp/raw"
