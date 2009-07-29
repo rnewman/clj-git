@@ -179,6 +179,21 @@
      (with-line-seq [s (sh "git" "ls-tree" tree)]
        (doall (map tree-entry-seq s))))))
 
+(defn adding-to-tree
+  "Returns a tree listing consisting of entries from the selected tree
+  plus the new entries. New entries of the same name overwrite the old.
+  This operation is not recursive."
+  [tree new-entries]
+  (let [old-listing (ls-tree tree)]
+    (if (or (nil? old-listing)
+            (empty? old-listing))
+      new-entries
+      (concat
+        (let [names (set (map #(nth % 3) new-entries))]
+          (filter (comp (complement names) #(nth % 3))
+                  old-listing))
+        new-entries))))
+  
 (defn blob? [x]
   (= "blob" (second x)))
 
