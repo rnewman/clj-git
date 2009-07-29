@@ -125,6 +125,27 @@
                         (str "No commit for ref " ref "
                              in repo " *sh-dir* ".")))))
 
+(defn new-branch [name start-point]
+  (if start-point
+    (sh "git" "branch" "-l" name start-point)
+    (sh "git" "branch" "-l" name)))
+
+(defn- branches->list [str]
+  (with-line-seq [s str]
+    (doall
+      (map (fn [#^String x] (.substring x 2)) s))))
+
+(defn branches
+  ([]
+   (branches->list (sh "git" "branch" "--no-color")))
+  ([kind commit]
+   (if-let [option ({:merged "--merged"
+                     :no-merged "--no-merged"
+                     :contains "--contains"} kind)]
+     (branches->list (sh "git" "branch" "--no-color" option commit))
+     (throw (new Exception
+                 (str "Unrecognized option to `git branch`: " kind))))))
+ 
 (defn tree-entry->map [e]
   (let [[all perms type sha1 filename]
         (re-matches #"^([0-9]{6}) ([a-z]+) ([0-9a-f]+{40})\t(.*)$"
