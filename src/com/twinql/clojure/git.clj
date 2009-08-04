@@ -223,3 +223,31 @@
   [ref commit]
   (chomp
     (sh "git" "update-ref" ref commit)))
+  
+(defn checkout [branch]
+  (chomp
+    (apply sh ["git" "checkout" branch])))
+  
+(defn merge-current
+  [remote]
+  (chomp
+    (apply sh ["git" "merge" remote])))
+
+(defn pull [repo]
+  (chomp
+    (apply sh ["git" "pull" repo])))
+  
+(defn push [to & opts]
+  (let [{:keys [refspecs all? mirror? tags?]} opts]
+    (chomp
+      (apply sh
+             (concat
+               ["git" "push" "--porcelain"]
+               (cond
+                 all? ["--all"]
+                 mirror? ["--mirror"]
+                 tags? ["--tags"])
+               [to]
+               (if (string? refspecs)
+                 [refspecs]
+                 refspecs))))))
