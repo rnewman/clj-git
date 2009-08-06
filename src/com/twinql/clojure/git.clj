@@ -160,11 +160,22 @@
        perms type object	filename"
   [e]
   (rest (re-matches #"^([0-9]{6}) ([a-z]+) ([0-9a-f]+{40})\t(.*)$" e)))
- 
+
+(defn sha?
+  "Returns a true value (the hash itself) if `x` is a 40-character hash.
+  Only permits 0-9a-f, not A-F."
+  [x]
+  (re-find #"^[0-9a-f]{40}$" x))
+  
 (defn to-commit
   "Turns just about anything into a commit."
   [x]
-  (chomp (sh "git" "rev-parse" "--verify" x)))
+  (let [commit (chomp (sh "git" "rev-parse" "--verify" x))]
+    (if (sha? commit)
+      commit
+      (throw (new Exception
+                  (str x " does not name a single commit. Error was:\n"
+                       commit))))))
   
 (defn commit->tree
   [commit]
