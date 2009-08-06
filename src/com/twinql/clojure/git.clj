@@ -160,6 +160,11 @@
        perms type object	filename"
   [e]
   (rest (re-matches #"^([0-9]{6}) ([a-z]+) ([0-9a-f]+{40})\t(.*)$" e)))
+ 
+(defn to-commit
+  "Turns just about anything into a commit."
+  [x]
+  (chomp (sh "git" "rev-parse" "--verify" x)))
   
 (defn commit->tree
   [commit]
