@@ -7,6 +7,16 @@
   `(with-sh-dir (or ~repo *sh-dir*)     ; So repo can be nil.
      ~@body))
 
+(defn checking-fatality [x]
+  (if (string? x)
+    (let [#^String s x
+          #^String tidy (.trim s)]
+      (if (or (.startsWith tidy "fatal:")
+              (.startsWith tidy "error:"))
+        (throw (new Exception (str "Git error: " tidy)))
+        tidy))
+    x))
+  
 (defn git-kind [x]
   (letfn [(err []
             (throw (new Exception
@@ -35,11 +45,11 @@
 
 (defn object-size [hash]
   (Integer/parseInt
-    (chomp
+    (checking-fatality
       (sh "git" "cat-file" "-s" hash))))
 
 (defn object-type [hash]
-  (chomp
+  (checking-fatality
     (sh "git" "cat-file" "-t" hash)))
   
 (defn cat-object
@@ -55,7 +65,7 @@
   (if (and (not filters?)
            path)
     (throw (Exception. "Cannot combine path with no-filters."))
-    (chomp
+    (checking-fatality
       (apply sh
              :in object
              (concat
@@ -68,7 +78,7 @@
   "Each entry is a sequence of perms, kind, SHA1, name.
   If perms is nil, the default will be used for the kind."
   [entries]
-  (chomp
+  (checking-fatality
     (sh :in (apply str
               (seq
                 (map (fn [[perms kind sha1 name]]
@@ -170,7 +180,7 @@
 (defn to-commit
   "Turns just about anything into a commit."
   [x]
-  (let [commit (chomp (sh "git" "rev-parse" "--verify" x))]
+  (let [commit (checking-fatality (sh "git" "rev-parse" "--verify" x))]
     (if (sha? commit)
       commit
       (throw (new Exception
@@ -227,7 +237,7 @@
 
 (defn commit-tree
   [tree parent author committer message]
-  (chomp
+  (checking-fatality
     (apply sh (concat
                 [:in message
                  :env {"GIT_AUTHOR_NAME" author
@@ -237,25 +247,25 @@
 
 (defn update-ref
   [ref commit]
-  (chomp
+  (checking-fatality
     (sh "git" "update-ref" ref commit)))
   
 (defn checkout [branch]
-  (chomp
+  (checking-fatality
     (apply sh ["git" "checkout" branch])))
   
 (defn merge-current
   [remote]
-  (chomp
+  (checking-fatality
     (apply sh ["git" "merge" remote])))
 
 (defn pull [repo]
-  (chomp
+  (checking-fatality
     (apply sh ["git" "pull" repo])))
   
 (defn push [to & opts]
   (let [{:keys [refspecs all? mirror? tags?]} opts]
-    (chomp
+    (checking-fatality
       (apply sh
              (concat
                ["git" "push" "--porcelain"]
