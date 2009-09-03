@@ -3,6 +3,12 @@
   (:use clojure.contrib.str-utils)
   (:use clojure.contrib.shell-out))
 
+(def *git-path* "git")
+
+(defmacro with-git [path & body]
+  `(binding [*git-path* ~path]
+     ~@body))
+
 (defmacro with-repo [repo & body]
   `(with-sh-dir (or ~repo *sh-dir*)     ; So repo can be nil.
      ~@body))
@@ -35,29 +41,29 @@
 (defn make-repo [dir]
   (sh "mkdir" "-p" dir)
   (with-sh-dir dir
-    (sh "git" "init")))
+    (sh *git-path* "init")))
  
 (defn status []
-  (sh "git" "status"))
+  (sh *git-path* "status"))
 
 (defn object-exists? [hash]
-  (zero? (:exit (sh :return-map true "git" "cat-file" "-e" hash))))
+  (zero? (:exit (sh :return-map true *git-path* "cat-file" "-e" hash))))
 
 (defn object-size [hash]
   (Integer/parseInt
     (checking-fatality
-      (sh "git" "cat-file" "-s" hash))))
+      (sh *git-path* "cat-file" "-s" hash))))
 
 (defn object-type [hash]
   (checking-fatality
-    (sh "git" "cat-file" "-t" hash)))
+    (sh *git-path* "cat-file" "-t" hash)))
   
 (defn cat-object
   "Returns the contents as a string."
   ([hash]
-   (sh "git" "cat-file" "blob" hash))
+   (sh *git-path* "cat-file" "blob" hash))
   ([hash as]
-   (sh "git" "cat-file" (git-kind as) hash)))
+   (sh *git-path* "cat-file" (git-kind as) hash)))
     
 (defn hash-object-from-string
   "Returns the SHA-1."
@@ -69,7 +75,7 @@
       (apply sh
              :in object
              (concat
-               ["git" "hash-object" "--stdin"]
+               [*git-path* "hash-object" "--stdin"]
                (when path ["--path" path])
                (when write? ["-w"])
                (when (not filters?) ["--no-filters"]))))))
@@ -94,7 +100,7 @@
                            (= k "blob")
                            (str (or perms "100644") " blob " sha1 \tab name \newline))))
                      entries)))
-        "git" "mktree")))
+        *git-path* "mktree")))
 
 (defmacro with-line-seq [[s #^String lines] & body]
   `(with-open [ss# (java.io.StringReader. ~lines)
@@ -118,13 +124,13 @@
 
 (defn refs->commits []
   (reverse-line-map
-    (sh "git" "show-ref")))
+    (sh *git-path* "show-ref")))
 
 (defn ref->commit
   "Takes a full refspec, such as \"refs/heads/master\"."
   [ref]
   ((reverse-line-map
-     (sh "git" "show-ref" ref))
+     (sh *git-path* "show-ref" ref))
      ref))
 
 (defn ensure-ref->commit
@@ -137,8 +143,8 @@
 
 (defn new-branch [name start-point]
   (if start-point
-    (sh "git" "branch" "-l" name start-point)
-    (sh "git" "branch" "-l" name)))
+    (sh *git-path* "branch" "-l" name start-point)
+    (sh *git-path* "branch" "-l" name)))
 
 (defn- branches->list [str]
   (with-line-seq [s str]
@@ -147,12 +153,12 @@
 
 (defn branches
   ([]
-   (branches->list (sh "git" "branch" "--no-color")))
+   (branches->list (sh *git-path* "branch" "--no-color")))
   ([kind commit]
    (if-let [option ({:merged "--merged"
                      :no-merged "--no-merged"
                      :contains "--contains"} kind)]
-     (branches->list (sh "git" "branch" "--no-color" option commit))
+     (branches->list (sh *git-path* "branch" "--no-color" option commit))
      (throw (new Exception
                  (str "Unrecognized option to `git branch`: " kind))))))
  
@@ -180,7 +186,7 @@
 (defn to-commit
   "Turns just about anything into a commit."
   [x]
-  (let [commit (checking-fatality (sh "git" "rev-parse" "--verify" x))]
+  (let [commit (checking-fatality (sh *git-path* "rev-parse" "--verify" x))]
     (if (sha? commit)
       commit
       (throw (new Exception
@@ -202,7 +208,7 @@
   ([tree]
    (if (nil? tree)
      (throw (new Exception "nil passed to ls-tree."))
-     (with-line-seq [s (sh "git" "ls-tree" tree)]
+     (with-line-seq [s (sh *git-path* "ls-tree" tree)]
        (doall (map tree-entry-seq s))))))
 
 (defn adding-to-tree
@@ -242,33 +248,33 @@
                 [:in message
                  :env {"GIT_AUTHOR_NAME" author
                        "GIT_COMMITTER_NAME" committer}
-                 "git" "commit-tree" tree]
+                 *git-path* "commit-tree" tree]
                 (when parent ["-p" parent])))))
 
 (defn update-ref
   [ref commit]
   (checking-fatality
-    (sh "git" "update-ref" ref commit)))
+    (sh *git-path* "update-ref" ref commit)))
   
 (defn checkout [branch]
   (checking-fatality
-    (apply sh ["git" "checkout" branch])))
+    (apply sh [*git-path* "checkout" branch])))
   
 (defn merge-current
   [remote]
   (checking-fatality
-    (apply sh ["git" "merge" remote])))
+    (apply sh [*git-path* "merge" remote])))
 
 (defn pull [repo]
   (checking-fatality
-    (apply sh ["git" "pull" repo])))
+    (apply sh [*git-path* "pull" repo])))
   
 (defn push [to & opts]
   (let [{:keys [refspecs all? mirror? tags?]} opts]
     (checking-fatality
       (apply sh
              (concat
-               ["git" "push" "--porcelain"]
+               [*git-path* "push" "--porcelain"]
                (cond
                  all? ["--all"]
                  mirror? ["--mirror"]
