@@ -283,3 +283,12 @@
                (if (string? refspecs)
                  [refspecs]
                  refspecs))))))
+
+(defn check-ref-format [s branch?]
+  (checking-fatality
+    (apply sh (if branch?
+                [*git-path* "check-ref-format" "--branch" s]
+                [*git-path* "check-ref-format" s]))))
+
+(defn check-branch-name [name]
+  (check-ref-format name true))
