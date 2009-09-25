@@ -162,6 +162,10 @@
      (throw (new Exception
                  (str "Unrecognized option to `git branch`: " kind))))))
  
+;; There might be a more efficient way to do this...
+(defn branch-exists? [b]
+  (contains? (set (branches)) b))
+  
 (defn tree-entry->map [e]
   (let [[all perms type sha1 filename]
         (re-matches #"^([0-9]{6}) ([a-z]+) ([0-9a-f]+{40})\t(.*)$"
@@ -292,3 +296,17 @@
 
 (defn check-branch-name [name]
   (check-ref-format name true))
+  
+(defn rebase [src dest]
+  (checking-fatality
+    (apply sh (if dest
+                [*git-path* "rebase" src dest]
+                [*git-path* "rebase" src]))))
+
+(defn rebase-continue [which]
+  (if (#{:continue :skip :abort} which)
+    (checking-fatality
+      (apply sh [*git-path* "rebase" {:continue "--continue"
+                                      :skip "--skip"
+                                      :abort "--abort"}]))
+    (throw (new Exception (str "Invalid rebase keyword " (prn-str which))))))
